@@ -9,12 +9,12 @@
 #include <Ethernet_Generic.h>
 #include <Preferences.h>
 
-#define VERSION_SCIF_FW  "20240125"
+#define VERSION_SCIF_FW  "20240617"
 
 //#define OP_CHARGER_SIDE
 //#define OP_SERVER_TEST_PACKET
 
-#define PIN_LED             20
+#define PIN_LED             10
 #define PIN_W5500_RST       40
 #define PIN_ETH_CS          39
 #define PIN_ETH_INT         38
@@ -30,6 +30,7 @@
 #define PIN_UART_RX1        48
 #define PIN_UART_TX1        47
 #define PIN_BOOT            0
+#define PIN_MAX485_DE       11  //46
 
 #define PERIOD_MAIN_LOOP        500 // 500 msec
 #define PERIOD_CHARGER_MONITOR  60  // 60 = 30 sec, 120 = 1 min, 15*60*2 = 15 min
@@ -52,7 +53,7 @@ DhcpClass* dhcp = new DhcpClass();
 unsigned long sys_start_millis = 0;
 uint8_t g_led_status = 0;
 
-#define RS485_Serial  Serial1
+#define RS485_Serial  Serial2
 
 uint16_t CRC16_TBL[256] = {
 
@@ -195,7 +196,7 @@ void setup() {
 
   Serial.begin(115200);
   Serial1.begin(115200, SERIAL_8N1, PIN_UART_RX0, PIN_UART_TX0);  // RS232
-  Serial2.begin(115200, SERIAL_8N1, PIN_UART_RX1, PIN_UART_TX1);  // RS232 TTL
+  Serial2.begin(115200, SERIAL_8N1, PIN_UART_RX1, PIN_UART_TX1);  // RS485
 
   pinMode(PIN_LED, OUTPUT);
 
@@ -261,7 +262,7 @@ void setup() {
     gv_port = 5720;
   }
   if(!isdigit(gv_server[0])){
-    strcpy((char*) gv_server, "192.148.1.149");
+    strcpy((char*) gv_server, "192.168.1.149");
   }
   Serial.printf("Server IP: %s:%d\r\n", gv_server, gv_port);
 
@@ -444,7 +445,7 @@ void sub_test_loop(void) {
     while(1){
       if(Serial.available()) {
         c = Serial.read();
-        if(isalnum(c)){
+        if(isalnum(c) || (c == '#')){
           break;
         }
       }
@@ -453,6 +454,9 @@ void sub_test_loop(void) {
     Serial.printf("%c", c);
     Serial.println();
 
+    if(c == '#') {
+      break;
+    }
     switch(c) {
       case 'a': 
         sub_test_a();
@@ -1204,6 +1208,7 @@ void sub_test_r(void) {
 void sub_test_w(void) {
 
   char c;
+  char dummy_c;
   uint16_t port_tmp = 0;
   String strTmp = "";
  
@@ -1218,6 +1223,9 @@ void sub_test_w(void) {
     delay(100);
   }
   Serial.println(c);
+  if(Serial.available()){ // dummy read
+    dummy_c = Serial.read();
+  }
 
   if(c == '0') {  // Clear Preferences
     memset((void*) &gv_settings, 0x00, sizeof(gv_settings));
